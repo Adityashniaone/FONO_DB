@@ -1,62 +1,6 @@
-/* ===================================================================
-   FUNNEL VELOCITY DASHBOARD — data loader
-   ===================================================================
-
-   DATA SOURCE
-   Pulls live data from your FONO_Acquirer_Tracker Google Sheet using
-   the public "gviz" JSON endpoint — no backend / Apps Script / API
-   key required. The sheet must be shared as "Anyone with the link —
-   Viewer" (File > Share > General access).
-
-   Paste the Sheet ID (the string in the URL between /d/ and /edit)
-   into CONFIG.SHEET_ID below.
-
-   TABS USED
-     - "Acquirer Performance"  → FTD block + MTD block, per acquirer
-     - "Visit Log"             → raw dated events, used for the weekly
-                                  sparkline AND for any custom date
-                                  range that isn't exactly "this month"
-                                  or the FTD preset.
-
-   TIMEFRAME MODES
-     - MTD  ("This Month" preset) → read straight from the sheet's
-       "MTD Performance" block. These are your validated, reconciled
-       numbers — not recomputed.
-     - FTD  ("All Time" preset)   → read straight from the sheet's
-       "FTD Performance" block (assumed = cumulative since inception;
-       flagged for confirmation, see README note below).
-     - Custom range (any dates picked on the calendar that aren't
-       exactly one of the above) → computed live from Visit Log by
-       filtering events to the picked range and re-bucketing by
-       Stage After. If the picked range happens to exactly match the
-       current calendar month, it silently snaps back to the MTD
-       block instead of recomputing, so you always get the validated
-       sheet numbers when it really is "this month".
-
-   STAGE MAPPING (Visit Log "Stage After" → funnel columns), confirmed:
-     Visited                        → Visits
-     Lead                           → Pipeline
-     Signed (LOI)                   → Contracting
-     Onboarded (Live) / (Takeover)  → Contracted
-   "Lost/Dropped" and "Stalled" are excluded (outcomes, not stages).
-
-   ASSUMPTIONS FLAGGED FOR REVIEW
-   - FTD is treated as "cumulative since inception" — confirm this
-     matches your terminology.
-   - For custom ranges, a prospect is counted once per funnel stage
-     within the picked range (first log entry for that stage in that
-     window), so repeat updates don't inflate nest counts.
-   - "Target" is always the fixed Target Count column from the sheet
-     — it does not scale down for shorter custom ranges (a 3-day
-     range is still compared against the full target).
-   - "Properties signed" = count of unique prospects reaching
-     "Contracted" (MTD/FTD: the sheet's own Contracted Count column;
-     custom range: unique prospects in range).
-   ================================================================ */
 
 const CONFIG = {
-  // Paste your Google Sheet ID here (from the sheet's URL).
-  SHEET_ID: "https://docs.google.com/spreadsheets/d/1pZNwOip3teKUuV2bKQGuKnLMikKl5DVieNGVPBtEzqE/edit?gid=2059008135#gid=2059008135",
+  API_ENDPOINT: "/api/fono",
 
   TABS: {
     acquirerPerformance: "Acquirer Performance",
@@ -66,6 +10,10 @@ const CONFIG = {
   // Re-fetch the sheet every N milliseconds so the dashboard stays
   // live without a page refresh. Set to 0 to disable auto-refresh.
   REFRESH_MS: 60000,
+
+  // Set true to force demo data regardless of API availability
+  // (useful for previewing layout/styling changes offline).
+  FORCE_DEMO: false,
 };
 
 const THEATRE_ORDER = ["RN", "CORO", "WLG", "DCN"];
@@ -96,45 +44,33 @@ const FTD_FIELD_MAP = {
 };
 
 /* ---------------------------------------------------------------
-   Google Sheets gviz raw fetch (no header assumptions — returns a
-   plain 2D array of cell values so each tab can be parsed by
-   scanning for its own header text).
+   Fetch both tabs from the authenticated /api/fono endpoint. Returns
+   { acquirerPerformance: [][], visitLog: [][] } — already plain 2D
+   arrays, same shape the parsers below expect.
    --------------------------------------------------------------- */
 
-function gvizUrl(sheetName) {
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
-}
-
-function parseGvizCellValue(cell) {
-  if (!cell) return "";
-  const v = cell.v;
-  if (v === null || v === undefined) return "";
-  // Date / DateTime cells come back as "Date(2026,5,6)" (0-indexed month)
-  if (typeof v === "string" && v.startsWith("Date(")) {
-    const parts = v.slice(5, -1).split(",").map((n) => parseInt(n, 10));
-    const [y, mo, d = 1, h = 0, mi = 0, s = 0] = parts;
-    return new Date(y, mo, d, h, mi, s);
-  }
-  return v;
-}
-
-async function fetchRawRows(sheetName) {
-  const res = await fetch(gvizUrl(sheetName));
+async function fetchFonoData() {
+  const res = await fetch(CONFIG.API_ENDPOINT);
   if (!res.ok) {
-    throw new Error(`Could not load tab "${sheetName}" (HTTP ${res.status}). Check the tab name and sharing settings.`);
+    let detail = "";
+    try { detail = (await res.json()).error || ""; } catch (_) { /* non-JSON error body */ }
+    throw new Error(`Request to ${CONFIG.API_ENDPOINT} failed (HTTP ${res.status})${detail ? `: ${detail}` : ""}.`);
   }
-  const text = await res.text();
-  const jsonStart = text.indexOf("{");
-  const jsonEnd = text.lastIndexOf("}");
-  if (jsonStart === -1 || jsonEnd === -1) {
-    throw new Error(`Unexpected response for tab "${sheetName}". Is the sheet ID correct and shared publicly?`);
+  const data = await res.json();
+  if (!data || !Array.isArray(data.acquirerPerformance) || !Array.isArray(data.visitLog)) {
+    throw new Error(`Unexpected response from ${CONFIG.API_ENDPOINT} — expected { acquirerPerformance, visitLog } arrays.`);
   }
-  const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-  if (parsed.status === "error") {
-    const msg = (parsed.errors && parsed.errors[0] && parsed.errors[0].detailed_message) || "Unknown sheet error";
-    throw new Error(`Tab "${sheetName}": ${msg}`);
-  }
-  return parsed.table.rows.map((r) => r.c.map(parseGvizCellValue));
+  return data;
+}
+
+// The API returns dates as Sheets/Excel serial numbers (days since
+// 1899-12-30) rather than formatted strings, so parsing is exact and
+// timezone/locale-independent.
+function serialToDate(serial) {
+  if (typeof serial !== "number" || !Number.isFinite(serial)) return null;
+  const excelEpochUTC = Date.UTC(1899, 11, 30);
+  const d = new Date(excelEpochUTC + Math.round(serial) * 86400000);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 function toNumber(v, fallback = 0) {
@@ -254,9 +190,11 @@ function parseVisitLogAll(rows) {
   const events = [];
   for (let r = headerRowIdx + 1; r < rows.length; r++) {
     const row = rows[r];
-    if (!row || !row[dateIdx] || !(row[dateIdx] instanceof Date)) continue;
+    if (!row || row[dateIdx] === undefined || row[dateIdx] === "") continue;
+    const eventDate = typeof row[dateIdx] === "number" ? serialToDate(row[dateIdx]) : null;
+    if (!eventDate) continue;
     events.push({
-      date: toMidnight(row[dateIdx]),
+      date: eventDate,
       theatre: String(row[theatreIdx] || "").trim().toUpperCase(),
       acquirer: acquirerIdx !== -1 ? String(row[acquirerIdx] || "").trim() : "",
       prospect: prospectIdx !== -1 ? String(row[prospectIdx] || "").trim() : `row${r}`,
@@ -580,8 +518,7 @@ function renderTheatres(theatreRows, acquirerRows, trendRows) {
 }
 
 /* ---------------------------------------------------------------
-   Demo data — shown automatically until a real SHEET_ID is set,
-   so the dashboard is never blank while you wire up the sheet.
+   Demo data — only shown if CONFIG.FORCE_DEMO is set to true.
    The filter controls are disabled in demo mode.
    --------------------------------------------------------------- */
 
@@ -621,7 +558,7 @@ const DEMO_DATA = {
   ],
 };
 
-const isDemoMode = () => !CONFIG.SHEET_ID || CONFIG.SHEET_ID === "YOUR_GOOGLE_SHEET_ID_HERE";
+const isDemoMode = () => CONFIG.FORCE_DEMO === true;
 
 /* ---------------------------------------------------------------
    Filter state + wiring
@@ -760,9 +697,11 @@ function showError(err) {
   const box = document.createElement("div");
   box.className = "load-error";
   box.innerHTML = `<strong>Couldn't load live data.</strong><br>${err.message}<br><br>
-    Check that <code>CONFIG.SHEET_ID</code> in <code>script.js</code> is set, the
-    spreadsheet is shared as "Anyone with the link", and the tab names match
-    <code>${CONFIG.TABS.acquirerPerformance}</code> and <code>${CONFIG.TABS.visitLog}</code>.`;
+    Check that <code>${CONFIG.API_ENDPOINT}</code> is deployed, the
+    <code>GOOGLE_SERVICE_ACCOUNT</code> environment variable is set, the
+    sheet is shared with the service account's email as Viewer, and the tab
+    names match <code>${CONFIG.TABS.acquirerPerformance}</code> and
+    <code>${CONFIG.TABS.visitLog}</code>.`;
   grid.prepend(box);
 }
 
@@ -771,16 +710,13 @@ async function loadDashboard() {
 
   if (isDemoMode()) {
     renderFromState();
-    setStatus("", "Showing demo data \u2014 set CONFIG.SHEET_ID in script.js to connect your live Google Sheet");
+    setStatus("", "Showing demo data \u2014 set CONFIG.FORCE_DEMO to false in script.js to use the live sheet");
     return;
   }
 
   try {
     setStatus("", "Connecting to live sheet\u2026");
-    const [acquirerPerfRaw, visitLogRaw] = await Promise.all([
-      fetchRawRows(CONFIG.TABS.acquirerPerformance),
-      fetchRawRows(CONFIG.TABS.visitLog),
-    ]);
+    const { acquirerPerformance: acquirerPerfRaw, visitLog: visitLogRaw } = await fetchFonoData();
 
     const mtdAcquirers = parsePerformanceSection(acquirerPerfRaw, "MTD Performance", MTD_FIELD_MAP);
     const ftdAcquirers = parsePerformanceSection(acquirerPerfRaw, "FTD Performance", FTD_FIELD_MAP);
