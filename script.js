@@ -1,7 +1,4 @@
 const CONFIG = {
-  // Serverless endpoint (see api/fono.js) that authenticates to Google
-  // Sheets with a service account and returns both tabs as JSON. No
-  // sheet ID or public sharing needed on the client side anymore.
   API_ENDPOINT: "/api/fono",
 
   TABS: {
@@ -37,7 +34,9 @@ const MTD_FIELD_MAP = {
   contractedCount: "Contracted Count",
 };
 
-const FTD_FIELD_MAP = {
+// This reads the sheet's "FTD Performance" section — confirmed to mean
+// "For The Day" (today only), so we treat/label it as the Today block.
+const TODAY_FIELD_MAP = {
   visitNests: "Visit Nests",
   pipelineNest: "Funnel Nest",
   contractingNest: "Contracting Nest",
@@ -241,9 +240,10 @@ function aggregateEventsForRange(events, start, end) {
 
 function buildAcquirersForRange(mode, start, end, ctx) {
   if (mode === "mtd") return ctx.mtdAcquirers;
-  if (mode === "ftd") return ctx.ftdAcquirers;
+  if (mode === "today") return ctx.todayAcquirers;
 
-  // custom
+  // "all" (All Time) and "custom" both compute live from Visit Log —
+  // "all" just uses the full-history range (earliest event -> today).
   const agg = aggregateEventsForRange(ctx.events, start, end);
   return ctx.metaList.map((meta) => {
     const hit = agg.get(`${meta.theatre}||${meta.name}`);
@@ -576,10 +576,10 @@ const isDemoMode = () => CONFIG.FORCE_DEMO === true;
    --------------------------------------------------------------- */
 
 const state = {
-  mode: "mtd",       // "mtd" | "ftd" | "custom"
+  mode: "mtd",       // "mtd" | "today" | "all" | "custom"
   rangeStart: null,  // Date, midnight
   rangeEnd: null,    // Date, midnight
-  ctx: null,         // { mtdAcquirers, ftdAcquirers, metaList, events }
+  ctx: null,         // { mtdAcquirers, todayAcquirers, metaList, events }
 };
 
 function currentMonthRange() {
@@ -616,12 +616,20 @@ function timeframeMeta(mode, start, end) {
       narrativeSuffix: "this month",
     };
   }
-  if (mode === "ftd") {
+  if (mode === "today") {
     return {
-      label: "FTD (All Time)",
-      shortLabel: "FTD",
-      dates: `Through ${fmtDateLabel(end)}`,
-      narrativeSuffix: "to date",
+      label: "Today",
+      shortLabel: "Today",
+      dates: fmtDateLabel(end),
+      narrativeSuffix: "today",
+    };
+  }
+  if (mode === "all") {
+    return {
+      label: "All Time",
+      shortLabel: "All Time",
+      dates: `${fmtDateLabel(start)} \u2013 ${fmtDateLabel(end)}`,
+      narrativeSuffix: "all-time",
     };
   }
   return {
@@ -674,9 +682,12 @@ function setupControls() {
       if (btn.dataset.preset === "mtd") {
         const r = currentMonthRange();
         state.mode = "mtd"; state.rangeStart = r.start; state.rangeEnd = r.end;
-      } else if (btn.dataset.preset === "ftd") {
+      } else if (btn.dataset.preset === "today") {
+        const today = toMidnight(new Date());
+        state.mode = "today"; state.rangeStart = today; state.rangeEnd = today;
+      } else if (btn.dataset.preset === "all") {
         const r = fullHistoryRange(state.ctx ? state.ctx.events : []);
-        state.mode = "ftd"; state.rangeStart = r.start; state.rangeEnd = r.end;
+        state.mode = "all"; state.rangeStart = r.start; state.rangeEnd = r.end;
       }
       renderFromState();
     });
@@ -732,11 +743,11 @@ async function loadDashboard() {
     const { acquirerPerformance: acquirerPerfRaw, visitLog: visitLogRaw } = await fetchFonoData();
 
     const mtdAcquirers = parsePerformanceSection(acquirerPerfRaw, "MTD Performance", MTD_FIELD_MAP);
-    const ftdAcquirers = parsePerformanceSection(acquirerPerfRaw, "FTD Performance", FTD_FIELD_MAP);
+    const todayAcquirers = parsePerformanceSection(acquirerPerfRaw, "FTD Performance", TODAY_FIELD_MAP);
     const events = parseVisitLogAll(visitLogRaw);
     const metaList = mtdAcquirers.map((a) => ({ name: a.name, theatre: a.theatre, target: a.target }));
 
-    state.ctx = { mtdAcquirers, ftdAcquirers, metaList, events };
+    state.ctx = { mtdAcquirers, todayAcquirers, metaList, events };
     if (!state.rangeStart) {
       const r = currentMonthRange();
       state.mode = "mtd"; state.rangeStart = r.start; state.rangeEnd = r.end;
