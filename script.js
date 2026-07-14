@@ -1,5 +1,7 @@
-
 const CONFIG = {
+  // Serverless endpoint (see api/fono.js) that authenticates to Google
+  // Sheets with a service account and returns both tabs as JSON. No
+  // sheet ID or public sharing needed on the client side anymore.
   API_ENDPOINT: "/api/fono",
 
   TABS: {
@@ -385,6 +387,7 @@ function buildDashboardData(acquirers, trendByTheatre, timeframe) {
 
   const summary = [
     { Key: "TimeframeLabel", Value: timeframe.label },
+    { Key: "ShortLabel", Value: timeframe.shortLabel },
     { Key: "TimeframeDates", Value: timeframe.dates },
     { Key: "SummaryNarrative", Value: summaryNarrative },
     { Key: "TotalVisitNests", Value: totalVisits },
@@ -419,6 +422,12 @@ function renderSummary(summaryRows) {
 
   document.getElementById("summary-narrative").innerHTML = kv.SummaryNarrative || "";
 
+  const shortLabel = kv.ShortLabel || "MTD";
+  document.getElementById("summary-heading").textContent = `${shortLabel} Summary`;
+  document.getElementById("stat-total-label").textContent = `Total ${shortLabel} Visit Nests`;
+  document.getElementById("stat-contracted-label").textContent = `${shortLabel} Contracted Nests`;
+  document.getElementById("target-eyebrow").textContent = `${shortLabel} Pipeline vs. Target`;
+
   const totalNests = toNumber(kv.TotalVisitNests);
   document.getElementById("stat-total-nests").textContent = totalNests.toLocaleString();
   document.getElementById("stat-total-caption").textContent =
@@ -441,7 +450,7 @@ function renderSummary(summaryRows) {
   document.getElementById("target-bar-fill").style.width = `${Math.min(pct, 100)}%`;
 }
 
-function renderTheatres(theatreRows, acquirerRows, trendRows) {
+function renderTheatres(theatreRows, acquirerRows, trendRows, shortLabel) {
   const container = document.getElementById("theatre-columns");
   container.innerHTML = "";
   const template = document.getElementById("theatre-template");
@@ -453,6 +462,7 @@ function renderTheatres(theatreRows, acquirerRows, trendRows) {
 
     node.querySelector(".theatre-name").textContent = t.Theatre;
     node.querySelector(".theatre-visits").textContent = `${visits.toLocaleString()} Visit Nests`;
+    node.querySelector(".acquirer-heading").textContent = `Acquirer ${shortLabel || "MTD"}`;
 
     const stageValues = { visits, pipeline, contracting: contractG, contracted };
     Object.entries(stageValues).forEach(([stage, value]) => {
@@ -525,6 +535,7 @@ function renderTheatres(theatreRows, acquirerRows, trendRows) {
 const DEMO_DATA = {
   summary: [
     { Key: "TimeframeLabel", Value: "MTD (This Month)" },
+    { Key: "ShortLabel", Value: "MTD" },
     { Key: "TimeframeDates", Value: "Jun 1 \u2013 Jun 9, 2026" },
     { Key: "SummaryNarrative", Value: "<b>RN</b> Theatre leads with the highest visit volume. Demo data shown \u2014 connect your sheet to see live numbers." },
     { Key: "TotalVisitNests", Value: 2294 },
@@ -598,9 +609,9 @@ function detectMode(start, end) {
 
 function timeframeMeta(mode, start, end) {
   if (mode === "mtd") {
-    const now = new Date();
     return {
       label: "MTD (This Month)",
+      shortLabel: "MTD",
       dates: `${fmtDateLabel(start)} \u2013 ${fmtDateLabel(end)}`,
       narrativeSuffix: "this month",
     };
@@ -608,12 +619,14 @@ function timeframeMeta(mode, start, end) {
   if (mode === "ftd") {
     return {
       label: "FTD (All Time)",
+      shortLabel: "FTD",
       dates: `Through ${fmtDateLabel(end)}`,
       narrativeSuffix: "to date",
     };
   }
   return {
     label: "Custom Range",
+    shortLabel: "Range",
     dates: `${fmtDateLabel(start)} \u2013 ${fmtDateLabel(end)}`,
     narrativeSuffix: "in this range",
   };
@@ -622,7 +635,7 @@ function timeframeMeta(mode, start, end) {
 function renderFromState() {
   if (isDemoMode() || !state.ctx) {
     renderSummary(DEMO_DATA.summary);
-    renderTheatres(DEMO_DATA.theatres, DEMO_DATA.acquirers, DEMO_DATA.trend);
+    renderTheatres(DEMO_DATA.theatres, DEMO_DATA.acquirers, DEMO_DATA.trend, "MTD");
     return;
   }
   const { mode, rangeStart, rangeEnd, ctx } = state;
@@ -631,7 +644,7 @@ function renderFromState() {
   const timeframe = timeframeMeta(mode, rangeStart, rangeEnd);
   const data = buildDashboardData(acquirers, trend, timeframe);
   renderSummary(data.summary);
-  renderTheatres(data.theatres, data.acquirers, data.trend);
+  renderTheatres(data.theatres, data.acquirers, data.trend, timeframe.shortLabel);
   syncControls();
 }
 
