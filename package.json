@@ -1,0 +1,7 @@
+{
+  "name": "sales-dashboard",
+  "version": "1.0.0",
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MTD Funnel Velocity & Resource Activity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="page">
+
+    <header class="masthead">
+      <div class="masthead-left">
+        <p class="eyebrow">Performance Operations Practice &middot; Month-to-Date Review</p>
+        <h1 class="title">MTD Funnel Velocity &amp; Resource Activity</h1>
+        <p class="subtitle">Cumulative monthly tracker &mdash; lead progression, bottleneck points, and individual contribution rates since month start</p>
+      </div>
+      <div class="masthead-right">
+        <p class="eyebrow eyebrow-right">Timeframe</p>
+
+        <div class="timeframe-controls">
+          <div class="preset-buttons">
+            <button type="button" class="preset-btn is-active" data-preset="mtd">This Month</button>
+            <button type="button" class="preset-btn" data-preset="ftd">All Time</button>
+          </div>
+          <div class="date-range-picker">
+            <input type="date" id="range-start" aria-label="Range start date" />
+            <span class="date-range-sep">&ndash;</span>
+            <input type="date" id="range-end" aria-label="Range end date" />
+            <button type="button" id="range-apply">Apply</button>
+          </div>
+        </div>
+
+        <div class="timeframe-pill" id="timeframe-pill">MTD (THIS MONTH)</div>
+        <p class="timeframe-dates" id="timeframe-dates">Loading&hellip;</p>
+      </div>
+    </header>
+
+    <div class="status-bar" id="status-bar" hidden>
+      <span class="status-dot"></span>
+      <span id="status-text">Connecting to live sheet&hellip;</span>
+    </div>
+
+    <main class="grid" id="dashboard-grid">
+      <!-- Summary column -->
+      <section class="card summary-card">
+        <h2 class="card-heading">MTD Summary</h2>
+        <p class="summary-narrative" id="summary-narrative">&nbsp;</p>
+
+        <div class="stat-block">
+          <p class="stat-label stat-label--orange">Total MTD Visit Nests</p>
+          <p class="stat-value" id="stat-total-nests">&mdash;</p>
+          <p class="stat-caption" id="stat-total-caption">&nbsp;</p>
+        </div>
+
+        <div class="stat-block">
+          <p class="stat-label stat-label--blue">Pipeline Conversion</p>
+          <p class="stat-value" id="stat-pipeline-conv">&mdash;</p>
+          <p class="stat-caption">Visits &rarr; Pipeline rate</p>
+        </div>
+
+        <div class="stat-block">
+          <p class="stat-label stat-label--green">MTD Contracted Nests</p>
+          <p class="stat-value" id="stat-contracted">&mdash;</p>
+          <p class="stat-caption" id="stat-contracted-caption">&nbsp;</p>
+        </div>
+
+        <div class="target-panel">
+          <p class="target-eyebrow">MTD Pipeline vs. Target</p>
+          <p class="target-label">Active Pipeline</p>
+          <p class="target-big" id="target-pipeline">&mdash; <span>Nests</span></p>
+
+          <div class="target-row">
+            <p class="target-label">Contracted Nests <span class="target-vs">vs Target</span></p>
+            <p class="target-pct" id="target-pct">&mdash;</p>
+          </div>
+          <p class="target-fraction" id="target-fraction">&mdash; / &mdash; Target</p>
+          <div class="target-bar"><div class="target-bar-fill" id="target-bar-fill"></div></div>
+        </div>
+      </section>
+
+      <!-- Theatre columns render here -->
+      <div id="theatre-columns" class="theatre-columns"></div>
+    </main>
+
+    <footer class="footer">
+      <span>Performance Operations Practice</span>
+      <span id="footer-mid">MTD View</span>
+      <span class="footer-italic">Performance Audit Report &middot; Internal Proprietary Presentation</span>
+    </footer>
+  </div>
+
+  <!-- Template for one theatre column -->
+  <template id="theatre-template">
+    <section class="card theatre-card">
+      <header class="theatre-header">
+        <h3 class="theatre-name"></h3>
+        <p class="theatre-visits"></p>
+      </header>
+
+      <ul class="funnel-list">
+        <li class="funnel-row" data-stage="visits">
+          <span class="funnel-bar funnel-bar--orange"></span>
+          <span class="funnel-label">1. Visits</span>
+          <span class="funnel-value"></span>
+        </li>
+        <li class="funnel-row" data-stage="pipeline">
+          <span class="funnel-bar funnel-bar--blue"></span>
+          <span class="funnel-label">2. Pipeline</span>
+          <span class="funnel-value"></span>
+        </li>
+        <li class="funnel-row" data-stage="contracting">
+          <span class="funnel-bar funnel-bar--orange"></span>
+          <span class="funnel-label">3. Contract&rsquo;g</span>
+          <span class="funnel-value"></span>
+        </li>
+        <li class="funnel-row" data-stage="contracted">
+          <span class="funnel-bar funnel-bar--green"></span>
+          <span class="funnel-label">4. Contracted</span>
+          <span class="funnel-value"></span>
+        </li>
+      </ul>
+
+      <div class="sparkline"></div>
+
+      <div class="acquirer-block">
+        <div class="acquirer-heading-row">
+          <span class="acquirer-heading">Acquirer MTD</span>
+          <span class="acquirer-active"></span>
+        </div>
+        <div class="acquirer-columns-label">
+          <span>Name</span><span>In-Flight</span>
+        </div>
+        <ul class="acquirer-list"></ul>
+        <p class="acquirer-zero"></p>
+      </div>
+
+      <p class="theatre-insight"></p>
+    </section>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
