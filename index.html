@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MTD Funnel Velocity & Resource Activity</title>
+<title>Funnel Velocity & Resource Activity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,9 +15,9 @@
 
     <header class="masthead">
       <div class="masthead-left">
-        <p class="eyebrow">Performance Operations Practice &middot; Month-to-Date Review</p>
-        <h1 class="title">MTD Funnel Velocity &amp; Resource Activity</h1>
-        <p class="subtitle">Cumulative monthly tracker &mdash; lead progression, bottleneck points, and individual contribution rates since month start</p>
+        <p class="eyebrow">Performance Operations Practice &middot; Funnel &amp; Resource Tracker</p>
+        <h1 class="title">Funnel Velocity &amp; Resource Activity</h1>
+        <p class="subtitle">Lead progression, bottleneck points, and individual contribution rates for the selected timeframe</p>
       </div>
       <div class="masthead-right">
         <p class="eyebrow eyebrow-right">Timeframe</p>
@@ -48,11 +48,11 @@
     <main class="grid" id="dashboard-grid">
       <!-- Summary column -->
       <section class="card summary-card">
-        <h2 class="card-heading">MTD Summary</h2>
+        <h2 class="card-heading" id="summary-heading">MTD Summary</h2>
         <p class="summary-narrative" id="summary-narrative">&nbsp;</p>
 
         <div class="stat-block">
-          <p class="stat-label stat-label--orange">Total MTD Visit Nests</p>
+          <p class="stat-label stat-label--orange" id="stat-total-label">Total MTD Visit Nests</p>
           <p class="stat-value" id="stat-total-nests">&mdash;</p>
           <p class="stat-caption" id="stat-total-caption">&nbsp;</p>
         </div>
@@ -64,13 +64,13 @@
         </div>
 
         <div class="stat-block">
-          <p class="stat-label stat-label--green">MTD Contracted Nests</p>
+          <p class="stat-label stat-label--green" id="stat-contracted-label">MTD Contracted Nests</p>
           <p class="stat-value" id="stat-contracted">&mdash;</p>
           <p class="stat-caption" id="stat-contracted-caption">&nbsp;</p>
         </div>
 
         <div class="target-panel">
-          <p class="target-eyebrow">MTD Pipeline vs. Target</p>
+          <p class="target-eyebrow" id="target-eyebrow">MTD Pipeline vs. Target</p>
           <p class="target-label">Active Pipeline</p>
           <p class="target-big" id="target-pipeline">&mdash; <span>Nests</span></p>
 
